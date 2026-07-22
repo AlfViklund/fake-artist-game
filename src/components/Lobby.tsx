@@ -48,7 +48,7 @@ export default function Lobby({
     onStartGame(catId, finalCustomWord);
   };
 
-  const canStart = players.length >= 3;
+  const canStart = players.length >= 2;
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto w-full">
@@ -211,7 +211,7 @@ export default function Lobby({
           </button>
           {!canStart && (
             <span className="text-xs text-center text-red-500/80 font-bold uppercase tracking-wider">
-              Для игры необходимо минимум 3 игрока
+              Для игры необходимо минимум 2 игрока
             </span>
           )}
         </div>

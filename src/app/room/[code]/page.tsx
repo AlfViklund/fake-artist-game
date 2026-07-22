@@ -143,7 +143,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
 
   // Start Game logic (Host only)
   const handleStartGame = async (categoryId: string | null, customWord?: string | null) => {
-    if (!room || players.length < 3) return;
+    if (!room || players.length < 2) return;
 
     // Pick word & category
     const { category, word } = customWord
