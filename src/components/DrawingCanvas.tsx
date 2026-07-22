@@ -337,6 +337,14 @@ export default function DrawingCanvas({
 
   return (
     <div className="flex flex-col w-full h-full gap-4">
+      {/* Shared Canvas Explanation Hint */}
+      <div className="px-4 py-2.5 rounded-xl bg-cyan-950/30 border border-[#00f0ff]/30 text-[#00f0ff] text-xs font-semibold flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2">
+          🎨 <strong>ОБЩИЙ ХОЛСТ:</strong> Все игроки рисуют на ЕДИНОМ рисунке в реальном времени!
+        </span>
+        <span className="text-[11px] text-zinc-400 font-mono hidden md:inline">У вас 1 линия за ход</span>
+      </div>
+
       {/* Turn Indicator Banner */}
       <div className={`p-3 rounded-lg border text-center transition-all ${
         isMyTurn 

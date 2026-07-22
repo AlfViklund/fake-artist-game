@@ -123,14 +123,19 @@ export const ResultsPhase: React.FC<ResultsPhaseProps> = ({
         </div>
       </div>
 
-      {isHost && (
+      {isHost ? (
         <button
           onClick={onNextRound}
-          className="mt-4 w-full py-4 px-6 rounded-xl font-black text-lg bg-gradient-to-r from-pink-600 via-purple-600 to-cyan-500 text-white shadow-lg neon-glow-pink hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
+          className="mt-4 w-full py-4 px-6 rounded-xl font-black text-lg bg-gradient-to-r from-pink-600 via-purple-600 to-cyan-500 text-white shadow-lg neon-glow-pink hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
           <RefreshCw className="w-5 h-5" />
           СЛЕДУЮЩИЙ РАУНД
         </button>
+      ) : (
+        <div className="mt-4 p-4 rounded-xl bg-zinc-900 border border-zinc-800 text-center text-zinc-400 text-sm font-semibold animate-pulse flex items-center justify-center gap-2">
+          <RefreshCw className="w-4 h-4 text-cyan-400 animate-spin" />
+          Ожидание хоста для запуска следующего раунда...
+        </div>
       )}
     </div>
   );

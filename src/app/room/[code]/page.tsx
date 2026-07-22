@@ -325,6 +325,18 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     await loadRoomData();
   };
 
+  // Exit Room Handler
+  const handleExitRoom = async () => {
+    if (room && currentUserId) {
+      await supabase
+        .from('room_players')
+        .delete()
+        .eq('room_id', room.id)
+        .eq('user_id', currentUserId);
+    }
+    router.push('/');
+  };
+
   // Next Round Trigger
   const handleNextRound = async () => {
     if (!room) return;
@@ -390,6 +402,23 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
 
   return (
     <div className="min-h-screen flex flex-col p-2 md:p-6 max-w-6xl mx-auto w-full gap-4">
+      {/* Top Header with Exit Button & Room Info */}
+      <div className="flex items-center justify-between p-3.5 glass-panel rounded-2xl border border-zinc-800 gap-3">
+        <button
+          onClick={handleExitRoom}
+          className="py-2 px-3.5 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 rounded-xl text-xs font-bold text-red-300 flex items-center gap-1.5 transition-all cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" /> Выйти из комнаты
+        </button>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-500 font-mono hidden sm:inline">КОД:</span>
+          <span className="font-mono font-black text-[#00f0ff] text-base px-2 py-0.5 rounded bg-[#00f0ff]/10 border border-[#00f0ff]/30">
+            #{room.code}
+          </span>
+        </div>
+      </div>
+
       {/* Top Game Bar during Active Game */}
       {room.status !== 'lobby' && (
         <div className="flex flex-wrap items-center justify-between p-4 glass-panel rounded-2xl border border-pink-500/30 gap-3">

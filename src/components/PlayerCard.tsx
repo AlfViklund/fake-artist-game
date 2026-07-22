@@ -13,6 +13,7 @@ interface PlayerCardProps {
   onClick?: () => void;
   selectable?: boolean;
   selected?: boolean;
+  statusText?: string;
 }
 
 export default function PlayerCard({
@@ -24,6 +25,7 @@ export default function PlayerCard({
   onClick,
   selectable = false,
   selected = false,
+  statusText,
 }: PlayerCardProps) {
   const getInitials = (name: string) => {
     return name.slice(0, 2).toUpperCase();
@@ -107,9 +109,9 @@ export default function PlayerCard({
             )}
             {!isDrawing && !isCurrentTurn && !showScore && (
               <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                player.is_ready ? 'text-[#00ff66]' : 'text-zinc-500'
+                statusText ? (statusText.includes('✓') ? 'text-[#00ff66]' : 'text-amber-400') : (player.is_ready ? 'text-[#00ff66]' : 'text-zinc-500')
               }`}>
-                {player.is_ready ? 'Готов' : 'Думает...'}
+                {statusText || (player.is_ready ? 'Готов' : 'Думает...')}
               </span>
             )}
           </div>
