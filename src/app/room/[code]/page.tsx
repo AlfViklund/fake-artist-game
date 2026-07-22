@@ -285,6 +285,19 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
       .eq('id', room.id);
   };
 
+  // Toggle Ready status (Non-host players)
+  const handleToggleReady = async () => {
+    if (!room || !currentUserId) return;
+    const me = players.find((p) => p.user_id === currentUserId);
+    if (!me) return;
+
+    await supabase
+      .from('room_players')
+      .update({ is_ready: !me.is_ready })
+      .eq('room_id', room.id)
+      .eq('user_id', currentUserId);
+  };
+
   // Next Round Trigger
   const handleNextRound = async () => {
     if (!room) return;
@@ -378,7 +391,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
           players={players}
           currentUserId={currentUserId || ''}
           onStartGame={(cat, word) => handleStartGame(cat, word)}
-          onToggleReady={() => {}}
+          onToggleReady={handleToggleReady}
         />
       )}
 
