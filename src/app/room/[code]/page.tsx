@@ -202,6 +202,8 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
           recap_image_url: dataUrl || room.recap_image_url,
         })
         .eq('id', room.id);
+
+      await loadRoomData();
     } else {
       // Advance to next player
       await supabase
@@ -213,6 +215,8 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
           recap_image_url: dataUrl || room.recap_image_url,
         })
         .eq('id', room.id);
+
+      await loadRoomData();
     }
   };
 
