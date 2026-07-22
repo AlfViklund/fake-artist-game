@@ -296,6 +296,8 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
       .update({ is_ready: !me.is_ready })
       .eq('room_id', room.id)
       .eq('user_id', currentUserId);
+
+    await loadRoomData();
   };
 
   // Next Round Trigger
