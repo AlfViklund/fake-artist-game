@@ -9,7 +9,7 @@ interface DrawingCanvasProps {
   isMyTurn: boolean;
   activeDrawerNickname?: string;
   onBroadcastStroke?: (stroke: StrokeData) => void;
-  onStrokeComplete?: (stroke: StrokeData) => void;
+  onStrokeComplete?: (stroke: StrokeData, dataUrl?: string) => void;
   onBroadcastClear?: () => void;
   realtimeChannel: RealtimeChannel | null;
   userId?: string;
@@ -292,8 +292,9 @@ export default function DrawingCanvas({
         points: currentStrokePointsRef.current,
         isEnd: true,
       };
+      const dataUrl = canvasRef.current ? canvasRef.current.toDataURL('image/png') : undefined;
       onBroadcastStroke?.(stroke);
-      onStrokeComplete?.(stroke);
+      onStrokeComplete?.(stroke, dataUrl);
       
       // Auto trigger parent callback with latest canvas data URL on turn ends
       triggerSaveCallback();

@@ -184,7 +184,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   };
 
   // Handle Turn End after drawing a stroke
-  const handleStrokeComplete = async (stroke: StrokeData) => {
+  const handleStrokeComplete = async (stroke: StrokeData, dataUrl?: string) => {
     if (!room || room.status !== 'drawing') return;
 
     const turnOrder: string[] = room.turn_order || players.map((p) => p.user_id);
@@ -199,6 +199,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
         .update({
           status: 'voting',
           current_turn_user_id: null,
+          recap_image_url: dataUrl || room.recap_image_url,
         })
         .eq('id', room.id);
     } else {
@@ -209,6 +210,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
           turn_index: nextIndex,
           current_turn_user_id: turnOrder[nextIndex],
           current_round: nextRound,
+          recap_image_url: dataUrl || room.recap_image_url,
         })
         .eq('id', room.id);
     }

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Timer, AlertTriangle, Vote as VoteIcon, Eye } from 'lucide-react';
+import { Timer, AlertTriangle, Vote as VoteIcon, Eye, Sparkles } from 'lucide-react';
 import { Room, RoomPlayer, Vote } from '../types/game';
 import PlayerCard from './PlayerCard';
 
@@ -78,24 +78,25 @@ export default function VotingPhase({
       </div>
 
       {/* Canvas Masterpiece Recap Card */}
-      {room.recap_image_url ? (
-        <div className="flex flex-col gap-2">
-          <span className="text-xs uppercase font-extrabold tracking-widest text-[#00f0ff]">ШЕДЕВР РАУНДА</span>
-          <div className="glass-panel p-3 rounded-2xl border border-zinc-800 overflow-hidden bg-[#07070e] flex items-center justify-center neon-glow-cyan">
-             {/* eslint-disable-next-line @next/next/no-img-element */}
-             <img 
-               src={room.recap_image_url} 
-               alt="Masterpiece recap" 
-               className="max-h-[300px] w-auto max-w-full rounded-lg object-contain"
-             />
-          </div>
+      <div className="flex flex-col gap-2">
+        <span className="text-xs uppercase font-extrabold tracking-widest text-[#00f0ff]">ШЕДЕВР РАУНДА</span>
+        <div className="glass-panel p-3.5 rounded-2xl border border-zinc-800 bg-[#07070e] flex items-center justify-center neon-glow-cyan min-h-[160px]">
+          {room.recap_image_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img 
+              src={room.recap_image_url} 
+              alt="Masterpiece recap" 
+              className="max-h-[300px] w-auto max-w-full rounded-lg object-contain"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center p-6 text-center gap-2">
+              <Sparkles className="w-8 h-8 text-[#00f0ff] animate-pulse" />
+              <span className="text-xs uppercase font-mono font-bold tracking-wider text-zinc-200">Совместный рисунок раунда</span>
+              <span className="text-[11px] text-zinc-500 font-mono">Категория: {room.category || 'Игровой Холст'}</span>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="glass-panel p-10 rounded-2xl border border-zinc-800 text-center flex flex-col items-center justify-center text-zinc-500 gap-2">
-          <Eye className="w-8 h-8 text-zinc-650" />
-          <span className="text-sm font-semibold">Изображение холста в режиме рендеринга...</span>
-        </div>
-      )}
+      </div>
 
       {/* Suspect Player Cards Grid */}
       <div className="flex flex-col gap-3">
