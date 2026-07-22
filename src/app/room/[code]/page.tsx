@@ -217,10 +217,11 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   };
 
   // Handle Vote casting
+  // Handle Vote casting
   const handleCastVote = async (suspectUserId: string) => {
     if (!room || !currentUserId) return;
 
-    await supabase.from('votes').insert({
+    await supabase.from('votes').upsert({
       room_id: room.id,
       voter_id: currentUserId,
       suspect_id: suspectUserId,
@@ -277,14 +278,32 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   const handleFakeGuessSubmit = async (guessWord: string) => {
     if (!room) return;
 
-    const isCorrect = guessWord.toLowerCase().trim() === (room.secret_word || '').toLowerCase().trim();
+    const cleanGuess = guessWord.toLowerCase().replace(/[^\wа-яё]/gi, '');
+    const cleanSecret = (room.secret_word || '').toLowerCase().replace(/[^\wа-яё]/gi, '');
 
+    const isCorrect = cleanGuess === cleanSecret && cleanSecret.length > 0;
     const winner = isCorrect ? 'fake' : 'artists';
 
     await supabase
       .from('rooms')
       .update({ status: 'results', winner })
       .eq('id', room.id);
+
+    // Award scores
+    if (isCorrect && room.fake_player_id) {
+      await supabase.rpc('increment_score', {
+        player_user_id: room.fake_player_id,
+        points: 2,
+      });
+    } else {
+      const artists = players.filter((p) => p.user_id !== room.fake_player_id);
+      for (const artist of artists) {
+        await supabase.rpc('increment_score', {
+          player_user_id: artist.user_id,
+          points: 1,
+        });
+      }
+    }
   };
 
   // Toggle Ready status (Non-host players)
@@ -305,9 +324,30 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   // Next Round Trigger
   const handleNextRound = async () => {
     if (!room) return;
+
+    // Reset player ready states
+    await supabase
+      .from('room_players')
+      .update({ is_ready: false })
+      .eq('room_id', room.id);
+
+    // Clear votes
+    await supabase
+      .from('votes')
+      .delete()
+      .eq('room_id', room.id);
+
+    // Reset room state for next game
     await supabase
       .from('rooms')
-      .update({ status: 'lobby' })
+      .update({
+        status: 'lobby',
+        secret_word: null,
+        recap_image_url: null,
+        winner: null,
+        current_round: 1,
+        turn_index: 0,
+      })
       .eq('id', room.id);
   };
 
