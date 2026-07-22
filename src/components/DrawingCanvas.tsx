@@ -13,6 +13,7 @@ interface DrawingCanvasProps {
   onBroadcastClear?: () => void;
   realtimeChannel: RealtimeChannel | null;
   userId?: string;
+  initialImageUrl?: string | null;
   onSaveImage?: (dataUrl: string) => void;
 }
 
@@ -37,6 +38,7 @@ export default function DrawingCanvas({
   onBroadcastClear,
   realtimeChannel,
   userId,
+  initialImageUrl,
   onSaveImage,
 }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -97,29 +99,38 @@ export default function DrawingCanvas({
     };
   }, []);
 
+  // Load background recap image if provided (for persistence across turns and reconnects)
+  useEffect(() => {
+    if (!initialImageUrl || !canvasRef.current) return;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = initialImageUrl;
+    img.onload = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const rect = canvas.getBoundingClientRect();
+      ctx.drawImage(img, 0, 0, rect.width, rect.height);
+    };
+  }, [initialImageUrl]);
+
   // Sync incoming realtime strokes and clear events
   useEffect(() => {
     if (!realtimeChannel) return;
 
-    const onBroadcast = (event: { event: string; payload: any }) => {
-      if (event.event === 'draw_stroke') {
+    realtimeChannel
+      .on('broadcast', { event: 'draw_stroke' }, (event: any) => {
         const stroke: StrokeData = event.payload;
-        // Don't draw our own stroke twice since we render locally during drawing
-        if (stroke.userId !== userId) {
+        if (stroke && stroke.userId !== userId) {
           drawRemoteStroke(stroke);
         }
-      } else if (event.event === 'clear_canvas') {
-        clearLocalCanvas(false);
-      }
-    };
-
-    const sub = realtimeChannel.on('broadcast', { event: 'draw_stroke' }, onBroadcast)
-      .on('broadcast', { event: 'clear_canvas' }, onBroadcast);
-
-    return () => {
-      // Remove listeners in Supabase Channel
-      realtimeChannel.untrack();
-    };
+      })
+      .on('broadcast', { event: 'clear_canvas' }, (event: any) => {
+        if (event.payload?.userId !== userId) {
+          clearLocalCanvas(false);
+        }
+      });
   }, [realtimeChannel, userId]);
 
   // Draw remote stroke using absolute pixel calculations based on modern relative bounds
@@ -148,15 +159,20 @@ export default function DrawingCanvas({
 
     const startX = points[0].x * rect.width;
     const startY = points[0].y * rect.height;
-    ctx.moveTo(startX, startY);
 
-    for (let i = 1; i < points.length; i++) {
-      const pX = points[i].x * rect.width;
-      const pY = points[i].y * rect.height;
-      ctx.lineTo(pX, pY);
+    if (points.length === 1) {
+      ctx.arc(startX, startY, stroke.width / 2, 0, Math.PI * 2);
+      ctx.fillStyle = stroke.color;
+      ctx.fill();
+    } else {
+      ctx.moveTo(startX, startY);
+      for (let i = 1; i < points.length; i++) {
+        const pX = points[i].x * rect.width;
+        const pY = points[i].y * rect.height;
+        ctx.lineTo(pX, pY);
+      }
+      ctx.stroke();
     }
-
-    ctx.stroke();
     ctx.restore();
   };
 
@@ -268,7 +284,7 @@ export default function DrawingCanvas({
     ctx.restore();
 
     // Broadcast live intermediate segments to keep drawing responsive for other players
-    if (realtimeChannel && currentStrokePointsRef.current.length % 3 === 0) {
+    if (realtimeChannel && currentStrokePointsRef.current.length % 2 === 0) {
       const strokeSegment: StrokeData = {
         userId: userId || 'anon',
         color,
@@ -276,6 +292,11 @@ export default function DrawingCanvas({
         points: currentStrokePointsRef.current.slice(-4),
         isEnd: false,
       };
+      realtimeChannel.send({
+        type: 'broadcast',
+        event: 'draw_stroke',
+        payload: strokeSegment,
+      });
       onBroadcastStroke?.(strokeSegment);
     }
   };
@@ -292,6 +313,13 @@ export default function DrawingCanvas({
         points: currentStrokePointsRef.current,
         isEnd: true,
       };
+      if (realtimeChannel) {
+        realtimeChannel.send({
+          type: 'broadcast',
+          event: 'draw_stroke',
+          payload: stroke,
+        });
+      }
       const dataUrl = canvasRef.current ? canvasRef.current.toDataURL('image/png') : undefined;
       onBroadcastStroke?.(stroke);
       onStrokeComplete?.(stroke, dataUrl);
@@ -311,8 +339,13 @@ export default function DrawingCanvas({
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     currentStrokePointsRef.current = [];
 
-    if (shouldBroadcast && onBroadcastClear) {
-      onBroadcastClear();
+    if (shouldBroadcast && realtimeChannel) {
+      realtimeChannel.send({
+        type: 'broadcast',
+        event: 'clear_canvas',
+        payload: { userId: userId || 'anon' },
+      });
+      onBroadcastClear?.();
     }
   };
 

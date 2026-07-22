@@ -477,6 +477,8 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
           isMyTurn={isMyTurn}
           activeDrawerNickname={activeDrawer?.nickname}
           realtimeChannel={realtimeChannel}
+          userId={currentUserId || ''}
+          initialImageUrl={room.recap_image_url}
           onStrokeComplete={handleStrokeComplete}
         />
       )}
