@@ -45,8 +45,12 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
       }
 
       if (!userId) {
-        const { data: anonAuth } = await supabase.auth.signInAnonymously();
-        userId = anonAuth.user?.id;
+        let guestId = localStorage.getItem('fake_artist_guest_id');
+        if (!guestId) {
+          guestId = crypto.randomUUID();
+          localStorage.setItem('fake_artist_guest_id', guestId);
+        }
+        userId = guestId;
       }
 
       if (!userId) {

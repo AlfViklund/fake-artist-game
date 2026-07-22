@@ -22,6 +22,15 @@ export default function HomePage() {
     return result;
   };
 
+  const getOrCreateGuestUserId = () => {
+    let userId = localStorage.getItem('fake_artist_guest_id');
+    if (!userId) {
+      userId = crypto.randomUUID();
+      localStorage.setItem('fake_artist_guest_id', userId);
+    }
+    return userId;
+  };
+
   const handleCreateRoom = async () => {
     if (!nickname.trim()) {
       setError('Пожалуйста, введите ваш никнейм');
@@ -32,13 +41,8 @@ export default function HomePage() {
     setError(null);
 
     try {
-      // 1. Anonymous auth
-      const { data: authData, error: authErr } = await supabase.auth.signInAnonymously();
-      if (authErr) throw authErr;
-
-      const userId = authData.user?.id;
-      if (!userId) throw new Error('Не удалось получить ID пользователя');
-
+      // 1. Guest user ID
+      const userId = getOrCreateGuestUserId();
       const code = generateCode();
 
       // 2. Create room
@@ -106,12 +110,8 @@ export default function HomePage() {
         throw new Error('Комната с таким кодом не найдена');
       }
 
-      // 2. Anonymous auth
-      const { data: authData, error: authErr } = await supabase.auth.signInAnonymously();
-      if (authErr) throw authErr;
-
-      const userId = authData.user?.id;
-      if (!userId) throw new Error('Не удалось получить ID пользователя');
+      // 2. Guest user ID
+      const userId = getOrCreateGuestUserId();
 
       // 3. Check if already in room
       const { data: existingPlayer } = await supabase
