@@ -46,25 +46,12 @@ export default function HomePage() {
   // Fetch open public rooms
   const fetchOpenRooms = useCallback(async () => {
     try {
-      let { data: roomsData, error: roomsErr } = await supabase
+      const { data: roomsData, error: roomsErr } = await supabase
         .from('rooms')
-        .select('id, code, category, created_at, is_private')
+        .select('id, code, category, created_at')
         .eq('status', 'lobby')
-        .or('is_private.eq.false,is_private.is.null')
         .order('created_at', { ascending: false })
         .limit(6);
-
-      // Fallback if column is_private does not exist in schema
-      if (roomsErr) {
-        const fallback = await supabase
-          .from('rooms')
-          .select('id, code, category, created_at')
-          .eq('status', 'lobby')
-          .order('created_at', { ascending: false })
-          .limit(6);
-        roomsData = (fallback.data || []).map((r: any) => ({ ...r, is_private: false }));
-        roomsErr = fallback.error;
-      }
 
       if (roomsErr || !roomsData) {
         setOpenRooms([]);
@@ -373,6 +360,7 @@ export default function HomePage() {
                     </span>
 
                     <button
+                      data-code={r.code}
                       onClick={() => handleJoinRoom(r.code)}
                       disabled={loading}
                       className="py-1.5 px-3 rounded-xl text-xs font-extrabold bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
