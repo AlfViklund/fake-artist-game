@@ -344,10 +344,10 @@ export default function HomePage() {
                       #{r.code}
                     </span>
                     <div className="flex flex-col min-w-0 overflow-hidden">
-                      <span className="text-xs font-bold text-slate-200 group-hover:text-cyan-300 transition-colors truncate">
+                      <span className="text-xs font-bold text-slate-200 group-hover:text-cyan-300 transition-colors truncate max-w-[110px] xs:max-w-[140px] sm:max-w-none">
                         Хост: {r.host_nickname}
                       </span>
-                      <span className="text-[10px] text-slate-500 truncate">
+                      <span className="text-[10px] text-slate-500 truncate max-w-[110px] xs:max-w-[140px] sm:max-w-none">
                         {r.category ? `Тема: ${r.category}` : 'Случайная тема'}
                       </span>
                     </div>
