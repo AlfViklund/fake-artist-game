@@ -230,19 +230,6 @@ export default function HomePage() {
         });
 
         if (joinErr) throw joinErr;
-
-        // Send broadcast event so host/players in room immediately update list
-        try {
-          const joinChannel = supabase.channel(`room_${roomData.id}`);
-          await joinChannel.subscribe();
-          await joinChannel.send({
-            type: 'broadcast',
-            event: 'player_joined',
-            payload: { nickname: nickname.trim() },
-          });
-        } catch {
-          // ignore broadcast errors
-        }
       }
 
       localStorage.setItem(`fake_artist_user_${targetCode}`, JSON.stringify({ userId, nickname: nickname.trim() }));
