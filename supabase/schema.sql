@@ -44,14 +44,23 @@ create table if not exists public.votes (
   unique(room_id, voter_id)
 );
 
+-- Unique Players Table (for global unique player statistics)
+create table if not exists public.unique_players (
+  user_id uuid primary key,
+  first_seen_at timestamptz default now(),
+  last_seen_at timestamptz default now()
+);
+
 -- RLS Policies
 alter table public.rooms enable row level security;
 alter table public.room_players enable row level security;
 alter table public.votes enable row level security;
+alter table public.unique_players enable row level security;
 
 create policy "Allow all rooms" on public.rooms for all using (true) with check (true);
 create policy "Allow all room_players" on public.room_players for all using (true) with check (true);
 create policy "Allow all votes" on public.votes for all using (true) with check (true);
+create policy "Allow all unique_players" on public.unique_players for all using (true) with check (true);
 
 -- Realtime Setup
 alter table public.rooms replica identity full;

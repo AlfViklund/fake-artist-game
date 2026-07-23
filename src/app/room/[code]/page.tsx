@@ -174,6 +174,36 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     return () => clearInterval(interval);
   }, [room?.id, loadRoomData]);
 
+  // Auto-remove player from room on browser tab close / unload
+  useEffect(() => {
+    if (!room?.id || !currentUserId) return;
+
+    const handleTabClose = () => {
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/room_players?room_id=eq.${room.id}&user_id=eq.${currentUserId}`;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+      try {
+        fetch(url, {
+          method: 'DELETE',
+          headers: {
+            'apikey': apiKey,
+            Authorization: `Bearer ${apiKey}`,
+          },
+          keepalive: true,
+        });
+      } catch {
+        // ignore unload error
+      }
+    };
+
+    window.addEventListener('beforeunload', handleTabClose);
+    window.addEventListener('pagehide', handleTabClose);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleTabClose);
+      window.removeEventListener('pagehide', handleTabClose);
+    };
+  }, [room?.id, currentUserId]);
+
   // Start Game logic (Host only)
   const handleStartGame = async (categoryId: string | null, customWord?: string | null) => {
     if (!room || players.length < 2) return;

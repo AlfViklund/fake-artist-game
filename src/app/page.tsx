@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Sparkles, Play, LogIn, Palette, ShieldAlert, Trophy, Globe, Users, Lock, ArrowRight } from 'lucide-react';
+import { Sparkles, Play, LogIn, Palette, ShieldAlert, Trophy, Globe, Users, ArrowRight } from 'lucide-react';
 
 interface OpenRoomItem {
   id: string;
@@ -12,6 +12,11 @@ interface OpenRoomItem {
   created_at: string;
   player_count: number;
   host_nickname: string;
+}
+
+interface GameMetrics {
+  totalUnique: number;
+  onlineCount: number;
 }
 
 export default function HomePage() {
@@ -23,6 +28,38 @@ export default function HomePage() {
 
   const [openRooms, setOpenRooms] = useState<OpenRoomItem[]>([]);
   const [openRoomsLoading, setOpenRoomsLoading] = useState(true);
+
+  const [metrics, setMetrics] = useState<GameMetrics>({
+    totalUnique: 0,
+    onlineCount: 0,
+  });
+
+  // Load remembered nickname & register guest user on mount
+  useEffect(() => {
+    const savedNick = localStorage.getItem('fake_artist_saved_nickname');
+    if (savedNick) {
+      setNickname(savedNick);
+    }
+
+    // Register/update guest ID in unique_players DB table for metrics tracking
+    const guestId = getOrCreateGuestUserId();
+    if (guestId) {
+      (async () => {
+        try {
+          await supabase
+            .from('unique_players')
+            .upsert({ user_id: guestId, last_seen_at: new Date().toISOString() }, { onConflict: 'user_id' });
+        } catch {
+          // ignore if table offline
+        }
+      })();
+    }
+  }, []);
+
+  const handleNicknameChange = (val: string) => {
+    setNickname(val);
+    localStorage.setItem('fake_artist_saved_nickname', val);
+  };
 
   // Generate 6-letter room code
   const generateCode = () => {
@@ -42,6 +79,31 @@ export default function HomePage() {
     }
     return userId;
   };
+
+  // Fetch Game Metrics (Total Unique Players & Current Online Players)
+  const fetchMetrics = useCallback(async () => {
+    try {
+      // 1. Current online players (in active room_players table)
+      const { count: online } = await supabase
+        .from('room_players')
+        .select('*', { count: 'exact', head: true });
+
+      // 2. Total unique players (from unique_players table)
+      const { count: unique } = await supabase
+        .from('unique_players')
+        .select('*', { count: 'exact', head: true });
+
+      const safeOnline = online ?? 0;
+      const safeUnique = unique ?? 0;
+
+      setMetrics({
+        onlineCount: safeOnline,
+        totalUnique: Math.max(safeUnique, safeOnline),
+      });
+    } catch (err) {
+      console.error('Failed to fetch game metrics:', err);
+    }
+  }, []);
 
   // Fetch open public rooms & auto-clean empty/stale rooms
   const fetchOpenRooms = useCallback(async () => {
@@ -108,24 +170,30 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchOpenRooms();
+    fetchMetrics();
 
     const channel = supabase
       .channel('public_open_rooms_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => {
         fetchOpenRooms();
+        fetchMetrics();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'room_players' }, () => {
         fetchOpenRooms();
+        fetchMetrics();
       })
       .subscribe();
 
-    const interval = setInterval(fetchOpenRooms, 4000);
+    const interval = setInterval(() => {
+      fetchOpenRooms();
+      fetchMetrics();
+    }, 4000);
 
     return () => {
       supabase.removeChannel(channel);
       clearInterval(interval);
     };
-  }, [fetchOpenRooms]);
+  }, [fetchOpenRooms, fetchMetrics]);
 
   const handleCreateRoom = async () => {
     if (!nickname.trim()) {
@@ -137,9 +205,21 @@ export default function HomePage() {
     setError(null);
 
     try {
+      // Save nickname to localStorage
+      localStorage.setItem('fake_artist_saved_nickname', nickname.trim());
+
       // 1. Guest user ID
       const userId = getOrCreateGuestUserId();
       const code = generateCode();
+
+      // Track unique player
+      try {
+        await supabase
+          .from('unique_players')
+          .upsert({ user_id: userId, last_seen_at: new Date().toISOString() }, { onConflict: 'user_id' });
+      } catch {
+        // ignore fallback
+      }
 
       // 2. Create room
       const { data: roomData, error: roomErr } = await supabase
@@ -195,6 +275,9 @@ export default function HomePage() {
     setError(null);
 
     try {
+      // Save nickname to localStorage
+      localStorage.setItem('fake_artist_saved_nickname', nickname.trim());
+
       // 1. Find room
       const { data: roomData, error: roomErr } = await supabase
         .from('rooms')
@@ -208,6 +291,15 @@ export default function HomePage() {
 
       // 2. Guest user ID
       const userId = getOrCreateGuestUserId();
+
+      // Track unique player
+      try {
+        await supabase
+          .from('unique_players')
+          .upsert({ user_id: userId, last_seen_at: new Date().toISOString() }, { onConflict: 'user_id' });
+      } catch {
+        // ignore fallback
+      }
 
       // 3. Check if already in room
       const { data: existingPlayer } = await supabase
@@ -282,7 +374,7 @@ export default function HomePage() {
               type="text"
               placeholder="Например: Нео_2077"
               value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
+              onChange={(e) => handleNicknameChange(e.target.value)}
               className="w-full bg-slate-950/80 border border-slate-700 text-white rounded-xl p-4 font-bold text-lg focus:border-pink-500 focus:ring-2 focus:ring-pink-500/30 outline-none transition-all"
               maxLength={16}
             />
@@ -292,7 +384,7 @@ export default function HomePage() {
             <button
               onClick={handleCreateRoom}
               disabled={loading}
-              className="w-full py-4 px-6 rounded-2xl font-black text-lg bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-lg neon-glow-pink hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+              className="w-full py-4 px-6 rounded-2xl font-black text-lg bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-lg neon-glow-pink hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer"
             >
               <Play className="w-5 h-5 fill-current" />
               СОЗДАТЬ НОВУЮ КОМНАТУ
@@ -316,7 +408,7 @@ export default function HomePage() {
               <button
                 onClick={() => handleJoinRoom()}
                 disabled={loading}
-                className="w-2/3 py-3 px-4 rounded-xl font-bold text-base bg-slate-900 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-950/40 hover:border-cyan-400 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-2/3 py-3 px-4 rounded-xl font-bold text-base bg-slate-900 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-950/40 hover:border-cyan-400 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
                 ВОЙТИ В ИГРУ
@@ -415,6 +507,28 @@ export default function HomePage() {
             <span className="text-[10px] text-slate-500">Вычислите или угадайте</span>
           </div>
         </div>
+
+        {/* Live Game Metrics Footer */}
+        <footer className="w-full py-4 px-6 glass-panel rounded-2xl border border-slate-800/80 flex items-center justify-between gap-4 text-xs font-medium">
+          <div className="flex items-center gap-2 text-slate-400">
+            <Users className="w-4 h-4 text-pink-400 shrink-0" />
+            <span>
+              Всего игроков: <strong className="text-white font-mono font-extrabold ml-1">{metrics.totalUnique}</strong>
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-800" />
+
+          <div className="flex items-center gap-2 text-slate-400">
+            <span className="flex h-2 w-2 relative shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>
+              Сейчас онлайн: <strong className="text-emerald-400 font-mono font-extrabold ml-1">{metrics.onlineCount}</strong>
+            </span>
+          </div>
+        </footer>
       </div>
     </main>
   );
