@@ -132,6 +132,12 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
           loadRoomData();
         }
       )
+      .on('broadcast', { event: 'player_joined' }, () => {
+        loadRoomData();
+      })
+      .on('broadcast', { event: 'player_left' }, () => {
+        loadRoomData();
+      })
       .subscribe();
 
     setRealtimeChannel(channel);
@@ -139,6 +145,33 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     return () => {
       supabase.removeChannel(channel);
     };
+  }, [room?.id, loadRoomData]);
+
+  // Tab visibility & Window Focus handler for instant sync when switching back to tab
+  useEffect(() => {
+    const handleSyncOnFocus = () => {
+      if (document.visibilityState === 'visible') {
+        loadRoomData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleSyncOnFocus);
+    window.addEventListener('focus', handleSyncOnFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleSyncOnFocus);
+      window.removeEventListener('focus', handleSyncOnFocus);
+    };
+  }, [loadRoomData]);
+
+  // Polling fallback to guarantee room player list sync across tab switches & backgrounding
+  useEffect(() => {
+    if (!room?.id) return;
+    const interval = setInterval(() => {
+      loadRoomData();
+    }, 2500);
+
+    return () => clearInterval(interval);
   }, [room?.id, loadRoomData]);
 
   // Start Game logic (Host only)
@@ -377,6 +410,15 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
         .delete()
         .eq('room_id', room.id)
         .eq('user_id', currentUserId);
+
+      // Broadcast player left
+      if (realtimeChannel) {
+        realtimeChannel.send({
+          type: 'broadcast',
+          event: 'player_left',
+          payload: { userId: currentUserId },
+        });
+      }
 
       // Check remaining players
       const { data: remainingPlayers } = await supabase
