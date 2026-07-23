@@ -339,8 +339,8 @@ export default function HomePage() {
                   key={r.id}
                   className="p-2.5 sm:p-3 bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl flex items-center justify-between gap-2 transition-all group overflow-hidden"
                 >
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-hidden">
-                    <span className="font-mono font-black text-cyan-400 text-xs sm:text-sm px-2 sm:px-2.5 py-1 rounded-xl bg-cyan-950/50 border border-cyan-800/40 shrink-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                    <span className="font-mono font-black text-cyan-400 text-xs px-2 py-1 rounded-lg bg-cyan-950/50 border border-cyan-800/40 shrink-0">
                       #{r.code}
                     </span>
                     <div className="flex flex-col min-w-0 overflow-hidden">
@@ -353,9 +353,9 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-                    <span className="text-xs font-semibold text-slate-400 bg-slate-900 px-2 sm:px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1 shrink-0">
-                      <Users className="w-3.5 h-3.5 text-pink-400" />
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[11px] font-semibold text-slate-400 bg-slate-900 px-2 py-1 rounded-lg border border-slate-800 flex items-center gap-1 shrink-0">
+                      <Users className="w-3 h-3 text-pink-400" />
                       {r.player_count}
                     </span>
 
@@ -363,10 +363,10 @@ export default function HomePage() {
                       data-code={r.code}
                       onClick={() => handleJoinRoom(r.code)}
                       disabled={loading}
-                      className="py-1.5 px-2.5 sm:px-3 rounded-xl text-xs font-extrabold bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
+                      className="py-1 px-2.5 sm:px-3 rounded-xl text-xs font-extrabold bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <span>ВОЙТИ</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <ArrowRight className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
