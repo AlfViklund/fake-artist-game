@@ -24,16 +24,25 @@ export default function VotingPhase({
 }: VotingPhaseProps) {
   const [timeLeft, setTimeLeft] = React.useState<number>(secondsLeft);
 
+  // Find my own vote
+  const myVote = votes.find((v) => v.voter_id === currentUserId);
+  const hasVoted = !!myVote;
+
   React.useEffect(() => {
-    if (timeLeft <= 0) return;
+    if (timeLeft <= 0) {
+      if (!hasVoted) {
+        const selectable = players.filter((p) => p.user_id !== currentUserId);
+        if (selectable.length > 0) {
+          onVote(selectable[0].user_id);
+        }
+      }
+      return;
+    }
     const interval = setInterval(() => {
       setTimeLeft((prev) => Math.max(0, prev - 1));
     }, 1000);
     return () => clearInterval(interval);
-  }, [timeLeft]);
-
-  // Find my own vote
-  const myVote = votes.find((v) => v.voter_id === currentUserId);
+  }, [timeLeft, hasVoted, players, currentUserId, onVote]);
 
   // Group votes by suspect user_id
   const voteMap = votes.reduce((acc, vote) => {
@@ -48,9 +57,6 @@ export default function VotingPhase({
       .map((v) => players.find((p) => p.user_id === v.voter_id))
       .filter((p): p is RoomPlayer => !!p);
   };
-
-  // Check if current user has already voted
-  const hasVoted = !!myVote;
 
   // Format countdown seconds
   const formatTime = (secs: number) => {

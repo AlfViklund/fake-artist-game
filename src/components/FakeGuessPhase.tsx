@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Timer, AlertTriangle, Send, ShieldAlert, CheckCircle } from 'lucide-react';
 import { Room, RoomPlayer } from '../types/game';
 
@@ -21,9 +21,24 @@ export default function FakeGuessPhase({
 }: FakeGuessPhaseProps) {
   const [guess, setGuess] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number>(secondsLeft ?? 30);
 
   const fakePlayer = players.find((p) => p.user_id === room.fake_player_id);
   const isMeFake = room.fake_player_id === currentUserId;
+
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      if (!submitted && isMeFake) {
+        setSubmitted(true);
+        onSubmitGuess('');
+      }
+      return;
+    }
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeLeft, submitted, isMeFake, onSubmitGuess]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +76,7 @@ export default function FakeGuessPhase({
         <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 px-4 py-2 rounded-xl self-start sm:self-center">
           <Timer className="w-5 h-5 text-[#ffe600] animate-pulse" />
           <span className="font-mono text-xl font-bold text-[#ffe600]">
-            {formatTime(secondsLeft ?? 30)}
+            {formatTime(timeLeft)}
           </span>
         </div>
       </div>

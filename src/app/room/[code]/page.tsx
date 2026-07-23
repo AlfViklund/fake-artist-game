@@ -184,8 +184,9 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   };
 
   // Handle Turn End after drawing a stroke
+  // Handle Turn End after drawing a stroke
   const handleStrokeComplete = async (stroke: StrokeData, dataUrl?: string) => {
-    if (!room || room.status !== 'drawing') return;
+    if (!room || room.status !== 'drawing' || room.current_turn_user_id !== currentUserId) return;
 
     const turnOrder: string[] = room.turn_order || players.map((p) => p.user_id);
     const nextIndex = ((room.turn_index ?? 0) + 1) % turnOrder.length;
@@ -201,7 +202,8 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
           current_turn_user_id: null,
           recap_image_url: dataUrl || room.recap_image_url,
         })
-        .eq('id', room.id);
+        .eq('id', room.id)
+        .eq('status', 'drawing');
 
       await loadRoomData();
     } else {
@@ -214,16 +216,16 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
           current_round: nextRound,
           recap_image_url: dataUrl || room.recap_image_url,
         })
-        .eq('id', room.id);
+        .eq('id', room.id)
+        .eq('status', 'drawing');
 
       await loadRoomData();
     }
   };
 
   // Handle Vote casting
-  // Handle Vote casting
   const handleCastVote = async (suspectUserId: string) => {
-    if (!room || !currentUserId) return;
+    if (!room || !currentUserId || room.status !== 'voting') return;
 
     await supabase.from('votes').upsert({
       room_id: room.id,
@@ -258,22 +260,25 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
         }
       });
 
-      // If tie occurs or suspect is not Fake -> Fake escapes!
+      // Atomic phase transition using .eq('status', 'voting')
       if (!isTie && mostVotedUserId === room.fake_player_id) {
         // Fake Caught! Go to Fake Guess Phase
         await supabase
           .from('rooms')
           .update({ status: 'fake_guess' })
-          .eq('id', room.id);
+          .eq('id', room.id)
+          .eq('status', 'voting');
       } else {
         // Fake Escaped! Fake wins!
-        await supabase
+        const { data: updatedRoom } = await supabase
           .from('rooms')
           .update({ status: 'results', winner: 'fake' })
-          .eq('id', room.id);
+          .eq('id', room.id)
+          .eq('status', 'voting')
+          .select();
 
-        // Award score to Fake
-        if (room.fake_player_id) {
+        // Award score to Fake ONLY if update actually transitioned
+        if (updatedRoom && updatedRoom.length > 0 && room.fake_player_id) {
           const fakePl = players.find((p) => p.user_id === room.fake_player_id);
           const { error: rpcErr } = await supabase.rpc('increment_score', {
             player_user_id: room.fake_player_id,
@@ -400,6 +405,8 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
         secret_word: null,
         recap_image_url: null,
         winner: null,
+        fake_player_id: null,
+        current_turn_user_id: null,
         current_round: 1,
         turn_index: 0,
       })
