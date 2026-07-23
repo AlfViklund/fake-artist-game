@@ -315,11 +315,14 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   const handleCastVote = async (suspectUserId: string) => {
     if (!room || !currentUserId || room.status !== 'voting') return;
 
-    await supabase.from('votes').upsert({
-      room_id: room.id,
-      voter_id: currentUserId,
-      suspect_id: suspectUserId,
-    });
+    await supabase.from('votes').upsert(
+      {
+        room_id: room.id,
+        voter_id: currentUserId,
+        suspect_id: suspectUserId,
+      },
+      { onConflict: 'room_id, voter_id' }
+    );
 
     // Check if all players voted
     const { data: updatedVotes } = await supabase
