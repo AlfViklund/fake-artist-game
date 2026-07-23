@@ -267,6 +267,8 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
         winner: null,
       })
       .eq('id', room.id);
+
+    await loadRoomData();
   };
 
   // Handle Turn End after drawing a stroke
