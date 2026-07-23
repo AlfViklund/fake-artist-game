@@ -43,53 +43,7 @@ export default function HomePage() {
     return userId;
   };
 
-  // Register guest in system stats room & fetch total unique players count
-  const registerAndFetchUniqueMetrics = useCallback(async (guestId: string) => {
-    try {
-      // 1. Get or create system stats room
-      let { data: room } = await supabase
-        .from('rooms')
-        .select('id')
-        .eq('code', 'STATS0')
-        .maybeSingle();
-
-      if (!room) {
-        const { data: newRoom } = await supabase
-          .from('rooms')
-          .insert({ code: 'STATS0', status: 'results', category: 'SYSTEM_STATS' })
-          .select()
-          .single();
-        room = newRoom;
-      }
-
-      if (room && guestId) {
-        // Register current guest user in STATS0 system room
-        await supabase.from('room_players').upsert(
-          {
-            room_id: room.id,
-            user_id: guestId,
-            nickname: 'SystemGuest',
-            avatar_color: '#ff007f',
-          },
-          { onConflict: 'room_id, user_id' }
-        );
-
-        // Fetch total unique player count
-        const { count } = await supabase
-          .from('room_players')
-          .select('*', { count: 'exact', head: true })
-          .eq('room_id', room.id);
-
-        if (count !== null && count > 0) {
-          setMetrics((prev) => ({ ...prev, totalUnique: count }));
-        }
-      }
-    } catch (err) {
-      console.error('Failed unique metrics tracking:', err);
-    }
-  }, []);
-
-  // Load remembered nickname & register unique metrics on mount
+  // Global Realtime Presence tracking for instant live online count & total unique visitors
   useEffect(() => {
     const savedNick = localStorage.getItem('fake_artist_saved_nickname');
     if (savedNick) {
@@ -97,16 +51,9 @@ export default function HomePage() {
     }
 
     const guestId = getOrCreateGuestUserId();
-    if (guestId) {
-      registerAndFetchUniqueMetrics(guestId);
-    }
-  }, [registerAndFetchUniqueMetrics]);
-
-  // Global Realtime Presence tracking for instant live online count
-  useEffect(() => {
-    const guestId = getOrCreateGuestUserId();
     if (!guestId) return;
 
+    // Presence channel for real-time online players counter
     const presenceChannel = supabase.channel('global_online_presence', {
       config: { presence: { key: guestId } },
     });
@@ -114,8 +61,14 @@ export default function HomePage() {
     presenceChannel
       .on('presence', { event: 'sync' }, () => {
         const state = presenceChannel.presenceState();
-        const count = Object.keys(state).length;
-        setMetrics((prev) => ({ ...prev, onlineCount: Math.max(count, 1) }));
+        const activeCount = Object.keys(state).length;
+        setMetrics((prev) => {
+          const newOnline = Math.max(activeCount, 1);
+          return {
+            onlineCount: newOnline,
+            totalUnique: Math.max(prev.totalUnique, newOnline),
+          };
+        });
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -240,9 +193,6 @@ export default function HomePage() {
       const userId = getOrCreateGuestUserId();
       const code = generateCode();
 
-      // Ensure registered in stats
-      await registerAndFetchUniqueMetrics(userId);
-
       // Create room
       const { data: roomData, error: roomErr } = await supabase
         .from('rooms')
@@ -309,7 +259,6 @@ export default function HomePage() {
       }
 
       const userId = getOrCreateGuestUserId();
-      await registerAndFetchUniqueMetrics(userId);
 
       const { data: existingPlayer } = await supabase
         .from('room_players')
