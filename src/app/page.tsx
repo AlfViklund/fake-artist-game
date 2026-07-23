@@ -30,30 +30,105 @@ export default function HomePage() {
   const [openRoomsLoading, setOpenRoomsLoading] = useState(true);
 
   const [metrics, setMetrics] = useState<GameMetrics>({
-    totalUnique: 0,
-    onlineCount: 0,
+    totalUnique: 1,
+    onlineCount: 1,
   });
 
-  // Load remembered nickname & register guest user on mount
+  const getOrCreateGuestUserId = () => {
+    let userId = localStorage.getItem('fake_artist_guest_id');
+    if (!userId) {
+      userId = crypto.randomUUID();
+      localStorage.setItem('fake_artist_guest_id', userId);
+    }
+    return userId;
+  };
+
+  // Register guest in system stats room & fetch total unique players count
+  const registerAndFetchUniqueMetrics = useCallback(async (guestId: string) => {
+    try {
+      // 1. Get or create system stats room
+      let { data: room } = await supabase
+        .from('rooms')
+        .select('id')
+        .eq('code', 'STATS0')
+        .maybeSingle();
+
+      if (!room) {
+        const { data: newRoom } = await supabase
+          .from('rooms')
+          .insert({ code: 'STATS0', status: 'results', category: 'SYSTEM_STATS' })
+          .select()
+          .single();
+        room = newRoom;
+      }
+
+      if (room && guestId) {
+        // Register current guest user in STATS0 system room
+        await supabase.from('room_players').upsert(
+          {
+            room_id: room.id,
+            user_id: guestId,
+            nickname: 'SystemGuest',
+            avatar_color: '#ff007f',
+          },
+          { onConflict: 'room_id, user_id' }
+        );
+
+        // Fetch total unique player count
+        const { count } = await supabase
+          .from('room_players')
+          .select('*', { count: 'exact', head: true })
+          .eq('room_id', room.id);
+
+        if (count !== null && count > 0) {
+          setMetrics((prev) => ({ ...prev, totalUnique: count }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed unique metrics tracking:', err);
+    }
+  }, []);
+
+  // Load remembered nickname & register unique metrics on mount
   useEffect(() => {
     const savedNick = localStorage.getItem('fake_artist_saved_nickname');
     if (savedNick) {
       setNickname(savedNick);
     }
 
-    // Register/update guest ID in unique_players DB table for metrics tracking
     const guestId = getOrCreateGuestUserId();
     if (guestId) {
-      (async () => {
-        try {
-          await supabase
-            .from('unique_players')
-            .upsert({ user_id: guestId, last_seen_at: new Date().toISOString() }, { onConflict: 'user_id' });
-        } catch {
-          // ignore if table offline
-        }
-      })();
+      registerAndFetchUniqueMetrics(guestId);
     }
+  }, [registerAndFetchUniqueMetrics]);
+
+  // Global Realtime Presence tracking for instant live online count
+  useEffect(() => {
+    const guestId = getOrCreateGuestUserId();
+    if (!guestId) return;
+
+    const presenceChannel = supabase.channel('global_online_presence', {
+      config: { presence: { key: guestId } },
+    });
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        const count = Object.keys(state).length;
+        setMetrics((prev) => ({ ...prev, onlineCount: Math.max(count, 1) }));
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({
+            online_at: new Date().toISOString(),
+            user_id: guestId,
+          });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
   }, []);
 
   const handleNicknameChange = (val: string) => {
@@ -71,53 +146,20 @@ export default function HomePage() {
     return result;
   };
 
-  const getOrCreateGuestUserId = () => {
-    let userId = localStorage.getItem('fake_artist_guest_id');
-    if (!userId) {
-      userId = crypto.randomUUID();
-      localStorage.setItem('fake_artist_guest_id', userId);
-    }
-    return userId;
-  };
-
-  // Fetch Game Metrics (Total Unique Players & Current Online Players)
-  const fetchMetrics = useCallback(async () => {
-    try {
-      // 1. Current online players (in active room_players table)
-      const { count: online } = await supabase
-        .from('room_players')
-        .select('*', { count: 'exact', head: true });
-
-      // 2. Total unique players (from unique_players table)
-      const { count: unique } = await supabase
-        .from('unique_players')
-        .select('*', { count: 'exact', head: true });
-
-      const safeOnline = online ?? 0;
-      const safeUnique = unique ?? 0;
-
-      setMetrics({
-        onlineCount: safeOnline,
-        totalUnique: Math.max(safeUnique, safeOnline),
-      });
-    } catch (err) {
-      console.error('Failed to fetch game metrics:', err);
-    }
-  }, []);
-
   // Fetch open public rooms & auto-clean empty/stale rooms
   const fetchOpenRooms = useCallback(async () => {
     try {
       // 30 minutes age threshold
       const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
-      // Clean up stale rooms older than 30 minutes
-      await supabase.from('rooms').delete().lt('created_at', thirtyMinsAgo);
+      // Clean up stale rooms older than 30 minutes (excluding system STATS0 room)
+      await supabase.from('rooms').delete().neq('code', 'STATS0').lt('created_at', thirtyMinsAgo);
 
       const { data: roomsData, error: roomsErr } = await supabase
         .from('rooms')
         .select('id, code, category, created_at')
         .eq('status', 'lobby')
+        .neq('code', 'STATS0')
         .gte('created_at', thirtyMinsAgo)
         .order('created_at', { ascending: false })
         .limit(12);
@@ -170,30 +212,26 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchOpenRooms();
-    fetchMetrics();
 
     const channel = supabase
       .channel('public_open_rooms_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => {
         fetchOpenRooms();
-        fetchMetrics();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'room_players' }, () => {
         fetchOpenRooms();
-        fetchMetrics();
       })
       .subscribe();
 
     const interval = setInterval(() => {
       fetchOpenRooms();
-      fetchMetrics();
     }, 4000);
 
     return () => {
       supabase.removeChannel(channel);
       clearInterval(interval);
     };
-  }, [fetchOpenRooms, fetchMetrics]);
+  }, [fetchOpenRooms]);
 
   const handleCreateRoom = async () => {
     if (!nickname.trim()) {
@@ -205,23 +243,15 @@ export default function HomePage() {
     setError(null);
 
     try {
-      // Save nickname to localStorage
       localStorage.setItem('fake_artist_saved_nickname', nickname.trim());
 
-      // 1. Guest user ID
       const userId = getOrCreateGuestUserId();
       const code = generateCode();
 
-      // Track unique player
-      try {
-        await supabase
-          .from('unique_players')
-          .upsert({ user_id: userId, last_seen_at: new Date().toISOString() }, { onConflict: 'user_id' });
-      } catch {
-        // ignore fallback
-      }
+      // Ensure registered in stats
+      await registerAndFetchUniqueMetrics(userId);
 
-      // 2. Create room
+      // Create room
       const { data: roomData, error: roomErr } = await supabase
         .from('rooms')
         .insert({
@@ -233,7 +263,7 @@ export default function HomePage() {
 
       if (roomErr) throw roomErr;
 
-      // 3. Add host player
+      // Add host player
       const colors = ['#ff007f', '#00f0ff', '#ffe600', '#00ff66', '#a855f7'];
       const avatarColor = colors[Math.floor(Math.random() * colors.length)];
 
@@ -247,7 +277,6 @@ export default function HomePage() {
 
       if (playerErr) throw playerErr;
 
-      // Store local session info
       localStorage.setItem(`fake_artist_user_${code}`, JSON.stringify({ userId, nickname: nickname.trim() }));
 
       router.push(`/room/${code}`);
@@ -275,10 +304,8 @@ export default function HomePage() {
     setError(null);
 
     try {
-      // Save nickname to localStorage
       localStorage.setItem('fake_artist_saved_nickname', nickname.trim());
 
-      // 1. Find room
       const { data: roomData, error: roomErr } = await supabase
         .from('rooms')
         .select('id, code, status')
@@ -289,19 +316,9 @@ export default function HomePage() {
         throw new Error('Комната не найдена');
       }
 
-      // 2. Guest user ID
       const userId = getOrCreateGuestUserId();
+      await registerAndFetchUniqueMetrics(userId);
 
-      // Track unique player
-      try {
-        await supabase
-          .from('unique_players')
-          .upsert({ user_id: userId, last_seen_at: new Date().toISOString() }, { onConflict: 'user_id' });
-      } catch {
-        // ignore fallback
-      }
-
-      // 3. Check if already in room
       const { data: existingPlayer } = await supabase
         .from('room_players')
         .select('id')

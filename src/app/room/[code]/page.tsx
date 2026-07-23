@@ -174,6 +174,28 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     return () => clearInterval(interval);
   }, [room?.id, loadRoomData]);
 
+  // Global Realtime Presence tracking while inside game room
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const presenceChannel = supabase.channel('global_online_presence', {
+      config: { presence: { key: currentUserId } },
+    });
+
+    presenceChannel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await presenceChannel.track({
+          online_at: new Date().toISOString(),
+          user_id: currentUserId,
+        });
+      }
+    });
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [currentUserId]);
+
   // Auto-remove player from room on browser tab close / unload
   useEffect(() => {
     if (!room?.id || !currentUserId) return;
