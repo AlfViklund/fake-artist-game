@@ -49,6 +49,9 @@ export default function HomePage() {
       // 2 hours age threshold
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 
+      // Clean up old rooms created > 2 hours ago
+      await supabase.from('rooms').delete().lt('created_at', twoHoursAgo);
+
       const { data: roomsData, error: roomsErr } = await supabase
         .from('rooms')
         .select('id, code, category, created_at')
