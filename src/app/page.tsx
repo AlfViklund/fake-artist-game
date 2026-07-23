@@ -1,9 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Sparkles, Play, LogIn, Palette, ShieldAlert, Trophy } from 'lucide-react';
+import { Sparkles, Play, LogIn, Palette, ShieldAlert, Trophy, Globe, Users, Lock, ArrowRight } from 'lucide-react';
+
+interface OpenRoomItem {
+  id: string;
+  code: string;
+  category: string | null;
+  created_at: string;
+  player_count: number;
+  host_nickname: string;
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -11,6 +20,9 @@ export default function HomePage() {
   const [roomCode, setRoomCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [openRooms, setOpenRooms] = useState<OpenRoomItem[]>([]);
+  const [openRoomsLoading, setOpenRoomsLoading] = useState(true);
 
   // Generate 6-letter room code
   const generateCode = () => {
@@ -31,6 +43,71 @@ export default function HomePage() {
     return userId;
   };
 
+  // Fetch open public rooms
+  const fetchOpenRooms = useCallback(async () => {
+    try {
+      const { data: roomsData, error: roomsErr } = await supabase
+        .from('rooms')
+        .select('id, code, category, created_at, is_private')
+        .eq('status', 'lobby')
+        .or('is_private.eq.false,is_private.is.null')
+        .order('created_at', { ascending: false })
+        .limit(6);
+
+      if (roomsErr || !roomsData) {
+        setOpenRooms([]);
+        return;
+      }
+
+      const roomsWithDetails = await Promise.all(
+        roomsData.map(async (r) => {
+          const { data: playersData } = await supabase
+            .from('room_players')
+            .select('nickname, is_host')
+            .eq('room_id', r.id);
+
+          const players = playersData || [];
+          const host = players.find((p) => p.is_host)?.nickname || 'Игрок';
+          return {
+            id: r.id,
+            code: r.code,
+            category: r.category,
+            created_at: r.created_at,
+            player_count: players.length,
+            host_nickname: host,
+          };
+        })
+      );
+
+      setOpenRooms(roomsWithDetails);
+    } catch (err) {
+      console.error('Failed to fetch open rooms:', err);
+    } finally {
+      setOpenRoomsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOpenRooms();
+
+    const channel = supabase
+      .channel('public_open_rooms_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => {
+        fetchOpenRooms();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_players' }, () => {
+        fetchOpenRooms();
+      })
+      .subscribe();
+
+    const interval = setInterval(fetchOpenRooms, 4000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [fetchOpenRooms]);
+
   const handleCreateRoom = async () => {
     if (!nickname.trim()) {
       setError('Пожалуйста, введите ваш никнейм');
@@ -45,12 +122,13 @@ export default function HomePage() {
       const userId = getOrCreateGuestUserId();
       const code = generateCode();
 
-      // 2. Create room
+      // 2. Create room (default open: is_private = false)
       const { data: roomData, error: roomErr } = await supabase
         .from('rooms')
         .insert({
           code,
           status: 'lobby',
+          is_private: false,
         })
         .select()
         .single();
@@ -147,6 +225,65 @@ export default function HomePage() {
     }
   };
 
+  const handleQuickJoinOpenRoom = (code: string) => {
+    if (!nickname.trim()) {
+      setError('Пожалуйста, сначала введите ваш никнейм!');
+      return;
+    }
+    setRoomCode(code);
+    
+    // Perform join directly
+    const cleanCode = code.toUpperCase();
+    setLoading(true);
+    setError(null);
+
+    (async () => {
+      try {
+        const { data: roomData, error: roomErr } = await supabase
+          .from('rooms')
+          .select('id, code, status')
+          .eq('code', cleanCode)
+          .maybeSingle();
+
+        if (roomErr || !roomData) {
+          throw new Error('Комната не найдена');
+        }
+
+        const userId = getOrCreateGuestUserId();
+
+        const { data: existingPlayer } = await supabase
+          .from('room_players')
+          .select('id')
+          .eq('room_id', roomData.id)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (!existingPlayer) {
+          const colors = ['#ff007f', '#00f0ff', '#ffe600', '#00ff66', '#a855f7'];
+          const avatarColor = colors[Math.floor(Math.random() * colors.length)];
+
+          const { error: joinErr } = await supabase.from('room_players').insert({
+            room_id: roomData.id,
+            user_id: userId,
+            nickname: nickname.trim(),
+            avatar_color: avatarColor,
+            is_host: false,
+          });
+
+          if (joinErr) throw joinErr;
+        }
+
+        localStorage.setItem(`fake_artist_user_${cleanCode}`, JSON.stringify({ userId, nickname: nickname.trim() }));
+        router.push(`/room/${cleanCode}`);
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || 'Ошибка при входе в комнату');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  };
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
       {/* Glow Orbs */}
@@ -227,6 +364,75 @@ export default function HomePage() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Open Rooms List */}
+        <div className="p-5 md:p-6 glass-panel rounded-3xl border border-cyan-500/30 neon-glow-cyan flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-cyan-400 font-extrabold text-sm tracking-wider uppercase">
+              <Globe className="w-4 h-4 text-cyan-400" />
+              <span>ОТКРЫТЫЕ КОМНАТЫ</span>
+              <span className="flex h-2 w-2 relative ml-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">Авто-обновление ⚡️</span>
+          </div>
+
+          {openRoomsLoading ? (
+            <div className="py-6 flex justify-center items-center gap-2 text-xs font-mono text-slate-500">
+              <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+              Поиск открытых сессий...
+            </div>
+          ) : openRooms.length === 0 ? (
+            <div className="py-6 px-4 bg-slate-950/60 rounded-2xl border border-slate-800/80 text-center flex flex-col items-center gap-1.5">
+              <Users className="w-6 h-6 text-slate-600 mb-0.5" />
+              <span className="text-xs font-bold text-slate-400">Сейчас нет открытых комнат</span>
+              <span className="text-[11px] text-slate-500 max-w-xs">
+                Создайте первую комнату выше — она появится в списке, и друзья смогут войти!
+              </span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-2.5">
+              {openRooms.map((r) => (
+                <div
+                  key={r.id}
+                  className="p-3 bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl flex items-center justify-between gap-3 transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-black text-cyan-400 text-sm px-2.5 py-1 rounded-xl bg-cyan-950/50 border border-cyan-800/40">
+                      #{r.code}
+                    </span>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-200 group-hover:text-cyan-300 transition-colors">
+                        Хост: {r.host_nickname}
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        {r.category ? `Тема: ${r.category}` : 'Случайная тема'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xs font-semibold text-slate-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-pink-400" />
+                      {r.player_count}
+                    </span>
+
+                    <button
+                      onClick={() => handleQuickJoinOpenRoom(r.code)}
+                      disabled={loading}
+                      className="py-1.5 px-3 rounded-xl text-xs font-extrabold bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <span>ВОЙТИ</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Quick Rules */}

@@ -353,6 +353,17 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     await loadRoomData();
   };
 
+  // Toggle Privacy status (Host only)
+  const handleTogglePrivacy = async (isPrivate: boolean) => {
+    if (!room) return;
+    await supabase
+      .from('rooms')
+      .update({ is_private: isPrivate })
+      .eq('id', room.id);
+
+    setRoom((prev) => (prev ? { ...prev, is_private: isPrivate } : prev));
+  };
+
   // Exit Room Handler
   const handleExitRoom = async () => {
     if (room && currentUserId) {
@@ -497,6 +508,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
           currentUserId={currentUserId || ''}
           onStartGame={(cat, word) => handleStartGame(cat, word)}
           onToggleReady={handleToggleReady}
+          onTogglePrivacy={handleTogglePrivacy}
         />
       )}
 

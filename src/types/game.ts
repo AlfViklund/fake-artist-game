@@ -21,6 +21,7 @@ export interface Room {
   current_round: number;
   max_rounds: number;
   created_at: string;
+  is_private?: boolean;
   
   // Frontend/virtual helper fields for matching legacy contracts
   turn_order?: string[];

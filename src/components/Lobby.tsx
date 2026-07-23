@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Copy, Check, Play, Settings, Users, Star, Dices } from 'lucide-react';
+import { Copy, Check, Play, Settings, Users, Star, Dices, Globe, Lock } from 'lucide-react';
 import { Room, RoomPlayer } from '../types/game';
 import { WORD_BANK } from '../lib/wordBank';
 import PlayerCard from './PlayerCard';
@@ -12,6 +12,7 @@ interface LobbyProps {
   currentUserId: string;
   onStartGame: (categoryId: string | null, customWord: string | null) => void;
   onToggleReady: () => void;
+  onTogglePrivacy?: (isPrivate: boolean) => void;
 }
 
 export default function Lobby({
@@ -20,6 +21,7 @@ export default function Lobby({
   currentUserId,
   onStartGame,
   onToggleReady,
+  onTogglePrivacy,
 }: LobbyProps) {
   const [copied, setCopied] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('random');
@@ -156,6 +158,42 @@ export default function Lobby({
               </p>
             </div>
           )}
+
+          {/* Access control mode: Open vs Private */}
+          <div className="flex flex-col gap-1.5 mt-2 pt-3 border-t border-zinc-800/80">
+            <label className="text-xs uppercase font-extrabold tracking-wider text-zinc-500">Доступ к Комнате</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onTogglePrivacy?.(false)}
+                className={`flex-1 py-2.5 px-3.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  !room.is_private
+                    ? 'bg-[#00f0ff]/10 border-[#00f0ff] text-[#00f0ff] shadow-[0_0_10px_rgba(0,240,255,0.15)]'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                }`}
+              >
+                <Globe className="w-4 h-4" />
+                <span>🌐 Открытая (В списке)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onTogglePrivacy?.(true)}
+                className={`flex-1 py-2.5 px-3.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  room.is_private
+                    ? 'bg-amber-950/40 border-amber-500 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+                <span>🔒 Закрытая (Только по коду)</span>
+              </button>
+            </div>
+            <p className="text-[10px] text-zinc-500 italic mt-0.5">
+              {!room.is_private
+                ? 'Открытая комната отображается в списке доступных игр на главной странице.'
+                : 'Приватная комната скрыта из общего списка. Вход доступен только по коду.'}
+            </p>
+          </div>
         </div>
       ) : (
         <div className="glass-panel p-5 rounded-2xl border border-zinc-800 flex items-center justify-between gap-4">
