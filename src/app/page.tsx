@@ -77,8 +77,8 @@ export default function HomePage() {
           const players = playersData || [];
           const host = players.find((p) => p.is_host)?.nickname || 'Игрок';
 
-          // Purge test rooms or empty rooms
-          if (players.length === 0 || host.includes('Алиса_Хост')) {
+          // Purge empty ghost rooms
+          if (players.length === 0) {
             await supabase.from('room_players').delete().eq('room_id', r.id);
             await supabase.from('votes').delete().eq('room_id', r.id);
             await supabase.from('rooms').delete().eq('id', r.id);
