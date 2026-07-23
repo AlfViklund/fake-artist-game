@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://psxtjturnobyhtnfzrlx.supabase.co').replace(/\/$/, '');
+const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://psxtjturnobyhtnfzrlx.supabase.co').trim().replace(/\/$/, '');
 
 async function proxy(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const resolvedParams = await params;
@@ -11,7 +11,6 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
 
   const requestHeaders = new Headers();
   req.headers.forEach((value, key) => {
-    // Exclude host and connection headers
     if (!['host', 'connection', 'content-length'].includes(key.toLowerCase())) {
       requestHeaders.set(key, value);
     }
@@ -42,8 +41,12 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
       headers: responseHeaders,
     });
   } catch (err: any) {
-    console.error('Supabase Proxy Error:', err);
-    return NextResponse.json({ error: err.message || 'Proxy Error' }, { status: 502 });
+    return NextResponse.json({
+      error: err.message || 'Proxy Error',
+      targetUrl,
+      cause: err.cause ? String(err.cause) : null,
+      stack: err.stack ? String(err.stack) : null,
+    }, { status: 502 });
   }
 }
 
