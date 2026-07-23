@@ -306,17 +306,17 @@ export default function HomePage() {
         </div>
 
         {/* Open Rooms List */}
-        <div className="p-5 md:p-6 glass-panel rounded-3xl border border-cyan-500/30 neon-glow-cyan flex flex-col gap-4">
+        <div className="p-4 sm:p-6 glass-panel rounded-3xl border border-cyan-500/30 neon-glow-cyan flex flex-col gap-3.5 overflow-hidden">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-cyan-400 font-extrabold text-sm tracking-wider uppercase">
-              <Globe className="w-4 h-4 text-cyan-400" />
+              <Globe className="w-4 h-4 text-cyan-400 shrink-0" />
               <span>ОТКРЫТЫЕ КОМНАТЫ</span>
-              <span className="flex h-2 w-2 relative ml-1">
+              <span className="flex h-2 w-2 relative ml-1 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
               </span>
             </div>
-            <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">Авто-обновление ⚡️</span>
+            <span className="text-[10px] font-mono text-slate-500 hidden sm:inline shrink-0">Авто-обновление ⚡️</span>
           </div>
 
           {openRoomsLoading ? (
@@ -333,28 +333,28 @@ export default function HomePage() {
               </span>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-2.5">
+            <div className="grid grid-cols-1 gap-2">
               {openRooms.map((r) => (
                 <div
                   key={r.id}
-                  className="p-3 bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl flex items-center justify-between gap-3 transition-all group"
+                  className="p-2.5 sm:p-3 bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl flex items-center justify-between gap-2 transition-all group overflow-hidden"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono font-black text-cyan-400 text-sm px-2.5 py-1 rounded-xl bg-cyan-950/50 border border-cyan-800/40">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-hidden">
+                    <span className="font-mono font-black text-cyan-400 text-xs sm:text-sm px-2 sm:px-2.5 py-1 rounded-xl bg-cyan-950/50 border border-cyan-800/40 shrink-0">
                       #{r.code}
                     </span>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-200 group-hover:text-cyan-300 transition-colors">
+                    <div className="flex flex-col min-w-0 overflow-hidden">
+                      <span className="text-xs font-bold text-slate-200 group-hover:text-cyan-300 transition-colors truncate">
                         Хост: {r.host_nickname}
                       </span>
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[10px] text-slate-500 truncate">
                         {r.category ? `Тема: ${r.category}` : 'Случайная тема'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-semibold text-slate-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                    <span className="text-xs font-semibold text-slate-400 bg-slate-900 px-2 sm:px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1 shrink-0">
                       <Users className="w-3.5 h-3.5 text-pink-400" />
                       {r.player_count}
                     </span>
@@ -363,7 +363,7 @@ export default function HomePage() {
                       data-code={r.code}
                       onClick={() => handleJoinRoom(r.code)}
                       disabled={loading}
-                      className="py-1.5 px-3 rounded-xl text-xs font-extrabold bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      className="py-1.5 px-2.5 sm:px-3 rounded-xl text-xs font-extrabold bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <span>ВОЙТИ</span>
                       <ArrowRight className="w-3.5 h-3.5" />
