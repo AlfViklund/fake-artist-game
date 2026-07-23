@@ -172,12 +172,14 @@ export default function HomePage() {
     }
   };
 
-  const handleJoinRoom = async () => {
+  const handleJoinRoom = async (codeOverride?: string) => {
+    const targetCode = (codeOverride || roomCode).trim().toUpperCase();
+
     if (!nickname.trim()) {
       setError('Пожалуйста, введите ваш никнейм');
       return;
     }
-    if (!roomCode.trim()) {
+    if (!targetCode) {
       setError('Пожалуйста, введите код комнаты');
       return;
     }
@@ -185,18 +187,16 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
 
-    const cleanCode = roomCode.trim().toUpperCase();
-
     try {
       // 1. Find room
       const { data: roomData, error: roomErr } = await supabase
         .from('rooms')
         .select('id, code, status')
-        .eq('code', cleanCode)
-        .single();
+        .eq('code', targetCode)
+        .maybeSingle();
 
       if (roomErr || !roomData) {
-        throw new Error('Комната с таким кодом не найдена');
+        throw new Error('Комната не найдена');
       }
 
       // 2. Guest user ID
@@ -225,74 +225,15 @@ export default function HomePage() {
         if (joinErr) throw joinErr;
       }
 
-      localStorage.setItem(`fake_artist_user_${cleanCode}`, JSON.stringify({ userId, nickname: nickname.trim() }));
+      localStorage.setItem(`fake_artist_user_${targetCode}`, JSON.stringify({ userId, nickname: nickname.trim() }));
 
-      router.push(`/room/${cleanCode}`);
+      router.push(`/room/${targetCode}`);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Ошибка при входе в комнату');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickJoinOpenRoom = (code: string) => {
-    if (!nickname.trim()) {
-      setError('Пожалуйста, сначала введите ваш никнейм!');
-      return;
-    }
-    setRoomCode(code);
-    
-    // Perform join directly
-    const cleanCode = code.toUpperCase();
-    setLoading(true);
-    setError(null);
-
-    (async () => {
-      try {
-        const { data: roomData, error: roomErr } = await supabase
-          .from('rooms')
-          .select('id, code, status')
-          .eq('code', cleanCode)
-          .maybeSingle();
-
-        if (roomErr || !roomData) {
-          throw new Error('Комната не найдена');
-        }
-
-        const userId = getOrCreateGuestUserId();
-
-        const { data: existingPlayer } = await supabase
-          .from('room_players')
-          .select('id')
-          .eq('room_id', roomData.id)
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (!existingPlayer) {
-          const colors = ['#ff007f', '#00f0ff', '#ffe600', '#00ff66', '#a855f7'];
-          const avatarColor = colors[Math.floor(Math.random() * colors.length)];
-
-          const { error: joinErr } = await supabase.from('room_players').insert({
-            room_id: roomData.id,
-            user_id: userId,
-            nickname: nickname.trim(),
-            avatar_color: avatarColor,
-            is_host: false,
-          });
-
-          if (joinErr) throw joinErr;
-        }
-
-        localStorage.setItem(`fake_artist_user_${cleanCode}`, JSON.stringify({ userId, nickname: nickname.trim() }));
-        router.push(`/room/${cleanCode}`);
-      } catch (err: any) {
-        console.error(err);
-        setError(err.message || 'Ошибка при входе в комнату');
-      } finally {
-        setLoading(false);
-      }
-    })();
   };
 
   return (
@@ -366,7 +307,7 @@ export default function HomePage() {
                 maxLength={6}
               />
               <button
-                onClick={handleJoinRoom}
+                onClick={() => handleJoinRoom()}
                 disabled={loading}
                 className="w-2/3 py-3 px-4 rounded-xl font-bold text-base bg-slate-900 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-950/40 hover:border-cyan-400 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
@@ -432,7 +373,7 @@ export default function HomePage() {
                     </span>
 
                     <button
-                      onClick={() => handleQuickJoinOpenRoom(r.code)}
+                      onClick={() => handleJoinRoom(r.code)}
                       disabled={loading}
                       className="py-1.5 px-3 rounded-xl text-xs font-extrabold bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500 hover:text-black active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
