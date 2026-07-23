@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://psxtjturnobyhtnfzrlx.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zwjqcmuzylsjskozpzkh.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_p3ikxZoI_gyHgpsBxVkPEQ_ZMlEqDUR';
 
 const supabaseUrl = typeof window !== 'undefined'
   ? `${window.location.origin}/api/supabase`
