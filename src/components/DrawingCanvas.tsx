@@ -87,7 +87,7 @@ export default function DrawingCanvas({
 
     // If we had content, scale and draw it back
     if (hasContent && tempCanvas.width > 0 && tempCanvas.height > 0) {
-      ctx.drawImage(tempCanvas, 0, 0, tempCanvas.width / dpr, tempCanvas.height / dpr, 0, 0, rect.width, rect.height);
+      ctx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, 0, 0, rect.width, rect.height);
     }
   };
 

@@ -119,7 +119,7 @@ export default function HomePage() {
         .select('id')
         .eq('room_id', roomData.id)
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (!existingPlayer) {
         const colors = ['#ff007f', '#00f0ff', '#ffe600', '#00ff66', '#a855f7'];

@@ -246,15 +246,20 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
 
       let maxVotes = 0;
       let mostVotedUserId: string | null = null;
+      let isTie = false;
 
       Object.entries(voteCounts).forEach(([suspectId, count]) => {
         if (count > maxVotes) {
           maxVotes = count;
           mostVotedUserId = suspectId;
+          isTie = false;
+        } else if (count === maxVotes) {
+          isTie = true;
         }
       });
 
-      if (mostVotedUserId === room.fake_player_id) {
+      // If tie occurs or suspect is not Fake -> Fake escapes!
+      if (!isTie && mostVotedUserId === room.fake_player_id) {
         // Fake Caught! Go to Fake Guess Phase
         await supabase
           .from('rooms')
@@ -269,10 +274,18 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
 
         // Award score to Fake
         if (room.fake_player_id) {
-          await supabase.rpc('increment_score', {
+          const fakePl = players.find((p) => p.user_id === room.fake_player_id);
+          const { error: rpcErr } = await supabase.rpc('increment_score', {
             player_user_id: room.fake_player_id,
             points: 2,
           });
+          if (rpcErr && fakePl) {
+            await supabase
+              .from('room_players')
+              .update({ score: fakePl.score + 2 })
+              .eq('room_id', room.id)
+              .eq('user_id', room.fake_player_id);
+          }
         }
       }
     }
@@ -295,17 +308,32 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
 
     // Award scores
     if (isCorrect && room.fake_player_id) {
-      await supabase.rpc('increment_score', {
+      const fakePl = players.find((p) => p.user_id === room.fake_player_id);
+      const { error: rpcErr } = await supabase.rpc('increment_score', {
         player_user_id: room.fake_player_id,
         points: 2,
       });
+      if (rpcErr && fakePl) {
+        await supabase
+          .from('room_players')
+          .update({ score: fakePl.score + 2 })
+          .eq('room_id', room.id)
+          .eq('user_id', room.fake_player_id);
+      }
     } else {
       const artists = players.filter((p) => p.user_id !== room.fake_player_id);
       for (const artist of artists) {
-        await supabase.rpc('increment_score', {
+        const { error: rpcErr } = await supabase.rpc('increment_score', {
           player_user_id: artist.user_id,
           points: 1,
         });
+        if (rpcErr) {
+          await supabase
+            .from('room_players')
+            .update({ score: artist.score + 1 })
+            .eq('room_id', room.id)
+            .eq('user_id', artist.user_id);
+        }
       }
     }
   };
