@@ -4,7 +4,7 @@ const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://psxtjturnobyhtnf
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
 
 const supabaseUrl = typeof window !== 'undefined'
-  ? `${window.location.origin}/supabase-proxy`
+  ? `${window.location.origin}/api/supabase`
   : rawUrl;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

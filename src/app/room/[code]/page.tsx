@@ -201,7 +201,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     if (!room?.id || !currentUserId) return;
 
     const handleTabClose = () => {
-      const baseUrl = window.location.origin + '/supabase-proxy';
+      const baseUrl = window.location.origin + '/api/supabase';
       const url = `${baseUrl}/rest/v1/room_players?room_id=eq.${room.id}&user_id=eq.${currentUserId}`;
       const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
       try {
