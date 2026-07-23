@@ -164,15 +164,15 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     };
   }, [loadRoomData]);
 
-  // Polling fallback to guarantee room player list sync across tab switches & backgrounding
+  // Polling fallback to guarantee room state & player sync across all devices
   useEffect(() => {
-    if (!room?.id) return;
+    if (!roomCode) return;
     const interval = setInterval(() => {
       loadRoomData();
-    }, 2500);
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [room?.id, loadRoomData]);
+  }, [roomCode, loadRoomData]);
 
   // Global Realtime Presence tracking while inside game room
   useEffect(() => {

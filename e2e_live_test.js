@@ -11,6 +11,7 @@ const { chromium } = require('playwright');
   const guestPage = await guestContext.newPage();
 
   try {
+    // 1. Host creates room
     console.log('1. Host navigating to home page...');
     await hostPage.goto('https://fake-artist-game-ten.vercel.app');
     await hostPage.waitForSelector('input[placeholder="Например: Нео_2077"]');
@@ -20,10 +21,10 @@ const { chromium } = require('playwright');
     await hostPage.click('button:has-text("СОЗДАТЬ НОВУЮ КОМНАТУ")');
 
     await hostPage.waitForURL(/\/room\/[A-Z0-9]{6}/);
-    const roomUrl = hostPage.url();
-    const roomCode = roomUrl.split('/').pop();
+    const roomCode = hostPage.url().split('/').pop();
     console.log(`✅ Host created room! Code: ${roomCode}`);
 
+    // 2. Guest joins room
     console.log('3. Guest joining room as "Боб_Инкогнито"...');
     await guestPage.goto('https://fake-artist-game-ten.vercel.app');
     await guestPage.fill('input[placeholder="Например: Нео_2077"]', 'Боб_Инкогнито');
@@ -33,19 +34,31 @@ const { chromium } = require('playwright');
     await guestPage.waitForURL(new RegExp(`/room/${roomCode}`));
     console.log('✅ Guest joined room successfully!');
 
+    // 3. Verify Live Lobby Sync
     console.log('4. Verifying Guest appears on Host screen live...');
     await hostPage.waitForSelector('text=Боб_Инкогнито', { timeout: 10000 });
     console.log('🎉 LIVE PLAYER SYNC PASSED 100%! "Боб_Инкогнито" displayed on Host screen!');
 
+    // 4. Host launches session
     console.log('5. Host clicking "ЗАПУСТИТЬ СЕССИЮ"...');
     await hostPage.click('button:has-text("ЗАПУСТИТЬ СЕССИЮ")');
 
-    await hostPage.waitForTimeout(3000);
-    const hostText = await hostPage.innerText('body');
-    console.log('Host page text after starting session:\n', hostText);
+    // 5. Verify game drawing phase active
+    await hostPage.waitForSelector('canvas', { timeout: 10000 });
+    await guestPage.waitForSelector('canvas', { timeout: 10000 });
+    console.log('✅ Drawing Phase active for both players!');
 
+    // Check roles
+    const hostText = await hostPage.innerText('body');
     const guestText = await guestPage.innerText('body');
-    console.log('Guest page text after starting session:\n', guestText);
+
+    const hostIsFake = hostText.includes('ВЫ — ФЕЙК');
+    const guestIsFake = guestText.includes('ВЫ — ФЕЙК');
+
+    console.log(`🎭 Host Role: ${hostIsFake ? 'FAKE ARTIST' : 'REAL ARTIST'}`);
+    console.log(`🎭 Guest Role: ${guestIsFake ? 'FAKE ARTIST' : 'REAL ARTIST'}`);
+
+    console.log('🏆 FULL 2-PLAYER E2E GAME TEST PASSED 100%!');
   } catch (err) {
     console.error('❌ E2E Test Failed:', err);
     process.exitCode = 1;
