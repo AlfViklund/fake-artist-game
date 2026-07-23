@@ -46,17 +46,17 @@ export default function HomePage() {
   // Fetch open public rooms & auto-clean empty/stale rooms
   const fetchOpenRooms = useCallback(async () => {
     try {
-      // 2 hours age threshold
-      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      // 30 minutes age threshold
+      const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
-      // Clean up old rooms created > 2 hours ago
-      await supabase.from('rooms').delete().lt('created_at', twoHoursAgo);
+      // Clean up stale rooms older than 30 minutes
+      await supabase.from('rooms').delete().lt('created_at', thirtyMinsAgo);
 
       const { data: roomsData, error: roomsErr } = await supabase
         .from('rooms')
         .select('id, code, category, created_at')
         .eq('status', 'lobby')
-        .gte('created_at', twoHoursAgo)
+        .gte('created_at', thirtyMinsAgo)
         .order('created_at', { ascending: false })
         .limit(12);
 
@@ -75,11 +75,14 @@ export default function HomePage() {
             .eq('room_id', r.id);
 
           const players = playersData || [];
-          if (players.length === 0) {
-            // Auto delete empty ghost room from DB
+          const host = players.find((p) => p.is_host)?.nickname || 'Игрок';
+
+          // Purge test rooms or empty rooms
+          if (players.length === 0 || host.includes('Алиса_Хост')) {
+            await supabase.from('room_players').delete().eq('room_id', r.id);
+            await supabase.from('votes').delete().eq('room_id', r.id);
             await supabase.from('rooms').delete().eq('id', r.id);
           } else {
-            const host = players.find((p) => p.is_host)?.nickname || 'Игрок';
             activeRooms.push({
               id: r.id,
               code: r.code,
