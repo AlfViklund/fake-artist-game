@@ -46,13 +46,25 @@ export default function HomePage() {
   // Fetch open public rooms
   const fetchOpenRooms = useCallback(async () => {
     try {
-      const { data: roomsData, error: roomsErr } = await supabase
+      let { data: roomsData, error: roomsErr } = await supabase
         .from('rooms')
         .select('id, code, category, created_at, is_private')
         .eq('status', 'lobby')
         .or('is_private.eq.false,is_private.is.null')
         .order('created_at', { ascending: false })
         .limit(6);
+
+      // Fallback if column is_private does not exist in schema
+      if (roomsErr && (roomsErr.code === 'PGRST204' || roomsErr.message?.includes('is_private'))) {
+        const fallback = await supabase
+          .from('rooms')
+          .select('id, code, category, created_at')
+          .eq('status', 'lobby')
+          .order('created_at', { ascending: false })
+          .limit(6);
+        roomsData = (fallback.data || []).map((r: any) => ({ ...r, is_private: false }));
+        roomsErr = fallback.error;
+      }
 
       if (roomsErr || !roomsData) {
         setOpenRooms([]);
@@ -122,13 +134,12 @@ export default function HomePage() {
       const userId = getOrCreateGuestUserId();
       const code = generateCode();
 
-      // 2. Create room (default open: is_private = false)
+      // 2. Create room
       const { data: roomData, error: roomErr } = await supabase
         .from('rooms')
         .insert({
           code,
           status: 'lobby',
-          is_private: false,
         })
         .select()
         .single();
