@@ -146,14 +146,11 @@ export default function HomePage() {
     return result;
   };
 
-  // Fetch open public rooms & auto-clean empty/stale rooms
+  // Fetch open public rooms
   const fetchOpenRooms = useCallback(async () => {
     try {
       // 30 minutes age threshold
       const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-
-      // Clean up stale rooms older than 30 minutes (excluding system STATS0 room)
-      await supabase.from('rooms').delete().neq('code', 'STATS0').lt('created_at', thirtyMinsAgo);
 
       const { data: roomsData, error: roomsErr } = await supabase
         .from('rooms')
@@ -181,12 +178,7 @@ export default function HomePage() {
           const players = playersData || [];
           const host = players.find((p) => p.is_host)?.nickname || 'Игрок';
 
-          // Purge empty ghost rooms
-          if (players.length === 0) {
-            await supabase.from('room_players').delete().eq('room_id', r.id);
-            await supabase.from('votes').delete().eq('room_id', r.id);
-            await supabase.from('rooms').delete().eq('id', r.id);
-          } else {
+          if (players.length > 0) {
             activeRooms.push({
               id: r.id,
               code: r.code,
