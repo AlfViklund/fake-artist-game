@@ -369,7 +369,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     setRoom((prev) => (prev ? { ...prev, is_private: isPrivate } : prev));
   };
 
-  // Exit Room Handler
+  // Exit Room Handler with Auto-Cleanup of empty rooms
   const handleExitRoom = async () => {
     if (room && currentUserId) {
       await supabase
@@ -377,6 +377,18 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
         .delete()
         .eq('room_id', room.id)
         .eq('user_id', currentUserId);
+
+      // Check remaining players
+      const { data: remainingPlayers } = await supabase
+        .from('room_players')
+        .select('id')
+        .eq('room_id', room.id);
+
+      if (!remainingPlayers || remainingPlayers.length === 0) {
+        // Last player left -> auto delete room & votes from DB
+        await supabase.from('votes').delete().eq('room_id', room.id);
+        await supabase.from('rooms').delete().eq('id', room.id);
+      }
     }
     router.push('/');
   };

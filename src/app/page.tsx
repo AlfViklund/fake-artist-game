@@ -43,22 +43,28 @@ export default function HomePage() {
     return userId;
   };
 
-  // Fetch open public rooms
+  // Fetch open public rooms & auto-clean empty/stale rooms
   const fetchOpenRooms = useCallback(async () => {
     try {
+      // 2 hours age threshold
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
       const { data: roomsData, error: roomsErr } = await supabase
         .from('rooms')
         .select('id, code, category, created_at')
         .eq('status', 'lobby')
+        .gte('created_at', twoHoursAgo)
         .order('created_at', { ascending: false })
-        .limit(6);
+        .limit(12);
 
       if (roomsErr || !roomsData) {
         setOpenRooms([]);
         return;
       }
 
-      const roomsWithDetails = await Promise.all(
+      const activeRooms: OpenRoomItem[] = [];
+
+      await Promise.all(
         roomsData.map(async (r) => {
           const { data: playersData } = await supabase
             .from('room_players')
@@ -66,19 +72,27 @@ export default function HomePage() {
             .eq('room_id', r.id);
 
           const players = playersData || [];
-          const host = players.find((p) => p.is_host)?.nickname || 'Игрок';
-          return {
-            id: r.id,
-            code: r.code,
-            category: r.category,
-            created_at: r.created_at,
-            player_count: players.length,
-            host_nickname: host,
-          };
+          if (players.length === 0) {
+            // Auto delete empty ghost room from DB
+            await supabase.from('rooms').delete().eq('id', r.id);
+          } else {
+            const host = players.find((p) => p.is_host)?.nickname || 'Игрок';
+            activeRooms.push({
+              id: r.id,
+              code: r.code,
+              category: r.category,
+              created_at: r.created_at,
+              player_count: players.length,
+              host_nickname: host,
+            });
+          }
         })
       );
 
-      setOpenRooms(roomsWithDetails);
+      // Sort by newest created_at
+      activeRooms.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setOpenRooms(activeRooms.slice(0, 6));
     } catch (err) {
       console.error('Failed to fetch open rooms:', err);
     } finally {
