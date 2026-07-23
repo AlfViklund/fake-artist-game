@@ -33,7 +33,7 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
       }
     });
 
-    const responseData = await res.arrayBuffer();
+    const responseData = (res.status === 204 || res.status === 205) ? null : await res.arrayBuffer();
 
     return new NextResponse(responseData, {
       status: res.status,
