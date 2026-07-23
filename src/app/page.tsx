@@ -55,7 +55,7 @@ export default function HomePage() {
         .limit(6);
 
       // Fallback if column is_private does not exist in schema
-      if (roomsErr && (roomsErr.code === 'PGRST204' || roomsErr.message?.includes('is_private'))) {
+      if (roomsErr) {
         const fallback = await supabase
           .from('rooms')
           .select('id, code, category, created_at')
