@@ -119,18 +119,22 @@ export default function DrawingCanvas({
   useEffect(() => {
     if (!realtimeChannel) return;
 
+    const strokeHandler = (event: any) => {
+      const stroke: StrokeData = event.payload;
+      if (stroke && stroke.userId !== userId) {
+        drawRemoteStroke(stroke);
+      }
+    };
+
+    const clearHandler = (event: any) => {
+      if (event.payload?.userId !== userId) {
+        clearLocalCanvas(false);
+      }
+    };
+
     realtimeChannel
-      .on('broadcast', { event: 'draw_stroke' }, (event: any) => {
-        const stroke: StrokeData = event.payload;
-        if (stroke && stroke.userId !== userId) {
-          drawRemoteStroke(stroke);
-        }
-      })
-      .on('broadcast', { event: 'clear_canvas' }, (event: any) => {
-        if (event.payload?.userId !== userId) {
-          clearLocalCanvas(false);
-        }
-      });
+      .on('broadcast', { event: 'draw_stroke' }, strokeHandler)
+      .on('broadcast', { event: 'clear_canvas' }, clearHandler);
   }, [realtimeChannel, userId]);
 
   // Draw remote stroke using absolute pixel calculations based on modern relative bounds

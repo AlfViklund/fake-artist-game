@@ -27,17 +27,24 @@ export default function FakeGuessPhase({
   const isMeFake = room.fake_player_id === currentUserId;
 
   useEffect(() => {
-    if (timeLeft <= 0) {
-      if (!submitted && isMeFake) {
-        setSubmitted(true);
-        onSubmitGuess('');
-      }
-      return;
-    }
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => Math.max(0, prev - 1));
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
-    return () => clearInterval(interval);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (timeLeft === 0 && !submitted && isMeFake) {
+      setSubmitted(true);
+      onSubmitGuess('');
+    }
   }, [timeLeft, submitted, isMeFake, onSubmitGuess]);
 
   const handleSubmit = (e: React.FormEvent) => {

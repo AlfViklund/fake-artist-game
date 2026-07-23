@@ -29,19 +29,26 @@ export default function VotingPhase({
   const hasVoted = !!myVote;
 
   React.useEffect(() => {
-    if (timeLeft <= 0) {
-      if (!hasVoted) {
-        const selectable = players.filter((p) => p.user_id !== currentUserId);
-        if (selectable.length > 0) {
-          onVote(selectable[0].user_id);
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
         }
-      }
-      return;
-    }
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => Math.max(0, prev - 1));
+        return prev - 1;
+      });
     }, 1000);
-    return () => clearInterval(interval);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  React.useEffect(() => {
+    if (timeLeft === 0 && !hasVoted) {
+      const selectable = players.filter((p) => p.user_id !== currentUserId);
+      if (selectable.length > 0) {
+        onVote(selectable[0].user_id);
+      }
+    }
   }, [timeLeft, hasVoted, players, currentUserId, onVote]);
 
   // Group votes by suspect user_id

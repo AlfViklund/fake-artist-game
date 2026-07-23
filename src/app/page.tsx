@@ -191,19 +191,28 @@ export default function HomePage() {
       localStorage.setItem('fake_artist_saved_nickname', nickname.trim());
 
       const userId = getOrCreateGuestUserId();
-      const code = generateCode();
+      let roomData = null;
+      let code = '';
 
-      // Create room
-      const { data: roomData, error: roomErr } = await supabase
-        .from('rooms')
-        .insert({
-          code,
-          status: 'lobby',
-        })
-        .select()
-        .single();
+      // Retry up to 5 times in case of code collision
+      for (let attempt = 0; attempt < 5; attempt++) {
+        code = generateCode();
+        const { data, error } = await supabase
+          .from('rooms')
+          .insert({
+            code,
+            status: 'lobby',
+          })
+          .select()
+          .single();
 
-      if (roomErr) throw roomErr;
+        if (!error && data) {
+          roomData = data;
+          break;
+        }
+      }
+
+      if (!roomData) throw new Error('Не удалось создать уникальный код комнаты. Попробуйте еще раз.');
 
       // Add host player
       const colors = ['#ff007f', '#00f0ff', '#ffe600', '#00ff66', '#a855f7'];

@@ -169,7 +169,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     if (!roomCode) return;
     const interval = setInterval(() => {
       loadRoomData();
-    }, 2000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [roomCode, loadRoomData]);
@@ -272,12 +272,17 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   };
 
   // Handle Turn End after drawing a stroke
-  // Handle Turn End after drawing a stroke
   const handleStrokeComplete = async (stroke: StrokeData, dataUrl?: string) => {
     if (!room || room.status !== 'drawing' || room.current_turn_user_id !== currentUserId) return;
 
-    const turnOrder: string[] = room.turn_order || players.map((p) => p.user_id);
-    const nextIndex = ((room.turn_index ?? 0) + 1) % turnOrder.length;
+    // Filter turn order against active players to prevent zombie/AFK deadlocks
+    const activeUserIds = players.map((p) => p.user_id);
+    const validTurnOrder: string[] = (room.turn_order || activeUserIds).filter((uid) => activeUserIds.includes(uid));
+
+    if (validTurnOrder.length === 0) return;
+
+    const currentPos = validTurnOrder.indexOf(currentUserId || '');
+    const nextIndex = currentPos !== -1 ? (currentPos + 1) % validTurnOrder.length : 0;
     const isRoundComplete = nextIndex === 0;
     const nextRound = isRoundComplete ? room.current_round + 1 : room.current_round;
 
@@ -295,12 +300,12 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
 
       await loadRoomData();
     } else {
-      // Advance to next player
+      // Advance to next active player
       await supabase
         .from('rooms')
         .update({
           turn_index: nextIndex,
-          current_turn_user_id: turnOrder[nextIndex],
+          current_turn_user_id: validTurnOrder[nextIndex],
           current_round: nextRound,
           recap_image_url: dataUrl || room.recap_image_url,
         })
@@ -338,21 +343,15 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
       });
 
       let maxVotes = 0;
-      let mostVotedUserId: string | null = null;
-      let isTie = false;
-
-      Object.entries(voteCounts).forEach(([suspectId, count]) => {
-        if (count > maxVotes) {
-          maxVotes = count;
-          mostVotedUserId = suspectId;
-          isTie = false;
-        } else if (count === maxVotes) {
-          isTie = true;
-        }
+      Object.values(voteCounts).forEach((count) => {
+        if (count > maxVotes) maxVotes = count;
       });
 
-      // Atomic phase transition using .eq('status', 'voting')
-      if (!isTie && mostVotedUserId === room.fake_player_id) {
+      // Check if Fake Artist received max votes (or tied for max votes)
+      const fakeVoteCount = room.fake_player_id ? voteCounts[room.fake_player_id] || 0 : 0;
+      const isFakeCaught = fakeVoteCount > 0 && fakeVoteCount === maxVotes;
+
+      if (isFakeCaught) {
         // Fake Caught! Go to Fake Guess Phase
         await supabase
           .from('rooms')
@@ -391,10 +390,21 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   const handleFakeGuessSubmit = async (guessWord: string) => {
     if (!room) return;
 
-    const cleanGuess = guessWord.toLowerCase().replace(/[^\wа-яё]/gi, '');
-    const cleanSecret = (room.secret_word || '').toLowerCase().replace(/[^\wа-яё]/gi, '');
+    // Use secure server-side RPC verification
+    const { data: isRpcCorrect } = await supabase.rpc('verify_fake_guess', {
+      p_room_id: room.id,
+      p_guess: guessWord,
+    });
 
-    const isCorrect = cleanGuess === cleanSecret && cleanSecret.length > 0;
+    let isCorrect = false;
+    if (isRpcCorrect !== null && isRpcCorrect !== undefined) {
+      isCorrect = !!isRpcCorrect;
+    } else {
+      const cleanGuess = guessWord.toLowerCase().replace(/[^\wа-яё]/gi, '');
+      const cleanSecret = (room.secret_word || '').toLowerCase().replace(/[^\wа-яё]/gi, '');
+      isCorrect = cleanGuess === cleanSecret && cleanSecret.length > 0;
+    }
+
     const winner = isCorrect ? 'fake' : 'artists';
 
     await supabase
@@ -460,9 +470,11 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     setRoom((prev) => (prev ? { ...prev, is_private: isPrivate } : prev));
   };
 
-  // Exit Room Handler with Auto-Cleanup of empty rooms
+  // Exit Room Handler with Auto-Cleanup & Host Promotion
   const handleExitRoom = async () => {
     if (room && currentUserId) {
+      const exitingPlayer = players.find((p) => p.user_id === currentUserId);
+
       await supabase
         .from('room_players')
         .delete()
@@ -481,13 +493,20 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
       // Check remaining players
       const { data: remainingPlayers } = await supabase
         .from('room_players')
-        .select('id')
-        .eq('room_id', room.id);
+        .select('id, is_host')
+        .eq('room_id', room.id)
+        .order('joined_at', { ascending: true });
 
       if (!remainingPlayers || remainingPlayers.length === 0) {
         // Last player left -> auto delete room & votes from DB
         await supabase.from('votes').delete().eq('room_id', room.id);
         await supabase.from('rooms').delete().eq('id', room.id);
+      } else if (exitingPlayer?.is_host && !remainingPlayers.some((p) => p.is_host)) {
+        // Exiting player was host -> promote oldest remaining player to host!
+        await supabase
+          .from('room_players')
+          .update({ is_host: true })
+          .eq('id', remainingPlayers[0].id);
       }
     }
     router.push('/');
